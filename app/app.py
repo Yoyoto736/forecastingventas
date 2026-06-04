@@ -24,32 +24,72 @@ def load_data(path: Path):
 
 
 def load_model(candidates):
+	# Helper to try loading a model from a filesystem path
+	def _try_load_from_path(pth):
+		pth = Path(pth)
+		if not pth.exists():
+			return None, None
+		# intentar joblib primero, luego pickle
+		if joblib is not None:
+			try:
+				m = joblib.load(pth)
+				return m, pth
+			except Exception:
+				pass
+		try:
+			import pickle
+			with open(pth, "rb") as f:
+				m = pickle.load(f)
+			return m, pth
+		except Exception:
+			return None, None
+
+	# Intentar carga local primero
 	for p in candidates:
-		p = Path(p)
-		if p.exists():
-			if joblib is not None:
-				try:
-					m = joblib.load(p)
-					return m, p
-				except Exception:
-					# intentar pickle como última opción
-					try:
-						import pickle
+		m, pth = _try_load_from_path(p)
+		if m is not None:
+			return m, pth
 
-						with open(p, "rb") as f:
-							m = pickle.load(f)
-						return m, p
-					except Exception:
-						continue
-			else:
-				try:
-					import pickle
+	# Si no se encontró localmente, intentar descargar desde GitHub raw
+	# (intenta por cada nombre de candidato en 'models/' del repo)
+	try:
+		from urllib.request import urlopen
+		import tempfile, os
+		from io import BytesIO
+		import pickle as _pickle
 
-					with open(p, "rb") as f:
-						m = pickle.load(f)
-					return m, p
+		for p in candidates:
+			name = Path(p).name
+			raw_url = f"https://raw.githubusercontent.com/Yoyoto736/Forecastingventas/main/models/{name}"
+			try:
+				resp = urlopen(raw_url, timeout=10)
+				data = resp.read()
+				# escribir temporalmente y cargar con joblib/pickle
+				tf = tempfile.NamedTemporaryFile(delete=False)
+				tf.write(data)
+				tf.flush()
+				tf.close()
+				try:
+					if joblib is not None:
+						m = joblib.load(tf.name)
+						os.unlink(tf.name)
+						return m, raw_url
 				except Exception:
+					pass
+				try:
+					with open(tf.name, "rb") as f:
+						m = _pickle.load(f)
+					os.unlink(tf.name)
+					return m, raw_url
+				except Exception:
+					os.unlink(tf.name)
 					continue
+			except Exception:
+				continue
+	except Exception:
+		# si la descarga falla por cualquier motivo, ignorar
+		pass
+
 	return None, None
 
 
@@ -190,12 +230,23 @@ def main():
 	# Resolver ruta del proyecto (un nivel arriba de app/)
 	base_dir = Path(__file__).resolve().parents[1]
 	data_path = base_dir.joinpath("data", "processed", "inferencia_df_transformado.csv")
+	# Rutas candidatas locales bajo el repo
 	model_candidates = [
 		base_dir.joinpath("models", "modelo_final.joblib"),
 		base_dir.joinpath("models", "model_full_df.joblib"),
 		base_dir.joinpath("models", "modelo_final.pkl"),
 		base_dir.joinpath("models", "modelo_full.joblib"),
 	]
+
+	# Añadir rutas fallback comunes en despliegues (p.ej. Streamlit Cloud)
+	# No hace falta que existan localmente; load_model las ignorará si faltan.
+	fallback_mount = Path("/mount/src/forecastingventas")
+	model_candidates.extend([
+		fallback_mount.joinpath("models", "modelo_final.joblib"),
+		fallback_mount.joinpath("models", "model_full_df.joblib"),
+		fallback_mount.joinpath("models", "modelo_final.pkl"),
+		fallback_mount.joinpath("models", "modelo_full.joblib"),
+	])
 
 	try:
 		df = load_data(data_path)
@@ -205,7 +256,12 @@ def main():
 
 	model, model_path = load_model(model_candidates)
 	if model is None:
-		st.error("No se ha podido cargar el modelo. Busqué: " + ", ".join([str(p) for p in model_candidates]))
+		# Mostrar rutas comprobadas para facilitar depuración en despliegue
+		tried = ", ".join([str(p) for p in model_candidates])
+		st.error(
+			"No se ha podido cargar el modelo. Rutas comprobadas: " + tried +
+			". Asegúrate de que `models/modelo_final.joblib` esté en la raíz del repo y vuelve a desplegar."
+		)
 		st.stop()
 
 	# Sidebar - controles
