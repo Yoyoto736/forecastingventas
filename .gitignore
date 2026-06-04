@@ -1,0 +1,13 @@
+# Archivos y carpetas a ignorar por git
+__pycache__/
+*.pyc
+.env
+*.env
+.DS_Store
+.ipynb_checkpoints/
+data/raw/
+models/
+.venv/
+.streamlit/
+temp_test.txt
+temp_test2.txt

@@ -1,0 +1,9 @@
+# Requerimientos del proyecto de Machine Learning
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+streamlit
+joblib
+jupyter
