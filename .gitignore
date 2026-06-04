@@ -6,7 +6,6 @@ __pycache__/
 .DS_Store
 .ipynb_checkpoints/
 data/raw/
-models/
 .venv/
 .streamlit/
 temp_test.txt
