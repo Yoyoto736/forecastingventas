@@ -24,24 +24,27 @@ def load_data(path: Path):
 
 
 def load_model(candidates):
-	# Helper to try loading a model from a filesystem path
+	# Helper para intentar cargar desde una ruta física
 	def _try_load_from_path(pth):
 		pth = Path(pth)
 		if not pth.exists():
 			return None, None
-		# intentar joblib primero, luego pickle
+		
+		# Si el archivo EXISTE, queremos ver por qué falla en lugar de ignorarlo
 		if joblib is not None:
 			try:
 				m = joblib.load(pth)
 				return m, pth
-			except Exception:
-				pass
+			except Exception as e:
+				# Mostramos el error real de compatibilidad en la interfaz
+				st.warning(f"Se encontró el archivo en `{pth}`, pero falló joblib: {e}")
 		try:
 			import pickle
 			with open(pth, "rb") as f:
 				m = pickle.load(f)
 			return m, pth
-		except Exception:
+		except Exception as e:
+			st.error(f"Error crítico al abrir el archivo con pickle: {e}")
 			return None, None
 
 	# Intentar carga local primero
@@ -50,21 +53,18 @@ def load_model(candidates):
 		if m is not None:
 			return m, pth
 
-	# Si no se encontró localmente, intentar descargar desde GitHub raw
-	# (intenta por cada nombre de candidato en 'models/' del repo)
+	# Si todo falla, intentar la descarga desde GitHub Raw (Tu código original)
 	try:
 		from urllib.request import urlopen
 		import tempfile, os
-		from io import BytesIO
 		import pickle as _pickle
 
 		for p in candidates:
 			name = Path(p).name
-			raw_url = f"https://raw.githubusercontent.com/Yoyoto736/Forecastingventas/main/models/{name}"
+			raw_url = f"https://raw.githubusercontent.com/Yoyoto736/forecastingventas/main/models/{name}"
 			try:
 				resp = urlopen(raw_url, timeout=10)
 				data = resp.read()
-				# escribir temporalmente y cargar con joblib/pickle
 				tf = tempfile.NamedTemporaryFile(delete=False)
 				tf.write(data)
 				tf.flush()
@@ -87,11 +87,9 @@ def load_model(candidates):
 			except Exception:
 				continue
 	except Exception:
-		# si la descarga falla por cualquier motivo, ignorar
 		pass
 
 	return None, None
-
 
 def find_column(df, base_names):
 	for b in base_names:
