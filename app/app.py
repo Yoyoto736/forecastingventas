@@ -394,6 +394,25 @@ def main():
 
 	st.sidebar.markdown("---")
 	st.sidebar.write(f"Modelo cargado: {model_path}")
+	# Debug: mostrar información rápida del modelo cargado y una predicción de prueba
+	try:
+		n_feats = getattr(model, "n_features_in_", None)
+		if n_feats is None:
+			n_feats = getattr(model, "n_features_in", None)
+		if n_feats is None:
+			n_feats = 1
+		else:
+			n_feats = int(n_feats)
+		X_test = np.zeros((1, n_feats))
+		try:
+			pred_test = model.predict(X_test)
+		except Exception as e:
+			pred_test = f"predict error: {e}"
+		st.sidebar.write(f"Modelo cargado: {model_path}")
+		st.sidebar.write(f"Tipo de modelo: {type(model)}")
+		st.sidebar.write(f"predict(np.zeros((1,{n_feats}))) -> {pred_test}")
+	except Exception as e:
+		st.sidebar.write(f"Debug modelo: error al inspeccionar modelo: {e}")
 
 	if not simular:
 		st.info("Elige controles en la barra lateral y pulsa 'Simular Ventas' para generar la predicción.")
