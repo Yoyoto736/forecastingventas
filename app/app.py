@@ -100,6 +100,68 @@ def find_column(df, base_names):
 	return None
 
 
+def diagnose_model_locations(candidates, repo_owner="Yoyoto736", repo_name="Forecastingventas"):
+	"""Devuelve diagnóstico sobre rutas locales comprobadas y estado de los archivos en GitHub raw."""
+	from urllib.request import Request, urlopen
+	import urllib.error
+
+	results = []
+	for p in candidates:
+		try:
+			pp = Path(p)
+		except Exception:
+			pp = Path(str(p))
+		exists = pp.exists()
+		is_file = pp.is_file() if exists else False
+		size = None
+		try:
+			if is_file:
+				size = pp.stat().st_size
+		except Exception:
+			size = None
+		results.append({"path": str(pp), "exists": exists, "is_file": is_file, "size": size})
+
+	# Check common bases and list models directory contents if present
+	bases = []
+	try:
+		parents = list(Path(__file__).resolve().parents)
+	except Exception:
+		parents = []
+	bases.extend(parents[:4])
+	bases.extend([Path.cwd(), Path("/app"), Path("/home/appuser"), Path("/workspace"), Path("/")])
+	bases_info = []
+	for base in bases:
+		try:
+			models_dir = base.joinpath("models")
+			if models_dir.exists() and models_dir.is_dir():
+				try:
+					files = [p.name for p in models_dir.iterdir()][:200]
+				except Exception:
+					files = []
+				bases_info.append({"base": str(base), "models_dir_exists": True, "files": files})
+			else:
+				bases_info.append({"base": str(base), "models_dir_exists": False, "files": []})
+		except Exception:
+			bases_info.append({"base": str(base), "models_dir_exists": False, "files": []})
+
+	# Check GitHub raw availability for candidate names
+	remote_info = []
+	for p in candidates:
+		name = Path(p).name
+		raw_url = f"https://raw.githubusercontent.com/{repo_owner}/{repo_name}/main/models/{name}"
+		try:
+			req = Request(raw_url, method="HEAD")
+			with urlopen(req, timeout=5) as resp:
+				status = resp.getcode()
+			remote_info.append({"name": name, "url": raw_url, "status": status})
+		except urllib.error.HTTPError as he:
+			remote_info.append({"name": name, "url": raw_url, "status": f"HTTPError {he.code}"})
+		except Exception as e:
+			remote_info.append({"name": name, "url": raw_url, "status": str(e)})
+
+	return {"candidates": results, "bases": bases_info, "remote": remote_info}
+
+
 def simulate_product(df_prod, model, discount_pct, comp_multiplier):
 	# Copia local
 	dfp = df_prod.copy().sort_values("fecha").reset_index(drop=True)
@@ -262,6 +324,28 @@ def main():
 			"No se ha podido cargar el modelo. Rutas comprobadas: " + tried +
 			". Asegúrate de que `models/modelo_final.joblib` esté en la raíz del repo y vuelve a desplegar."
 		)
+
+		# Mostrar diagnóstico ampliado en un expander para ayudar a depurar en producción
+		diag = diagnose_model_locations(model_candidates)
+		with st.expander("Diagnóstico de carga de modelo (detalles)"):
+			st.write("Comprobación local de rutas candidatas:")
+			try:
+				st.table(pd.DataFrame(diag["candidates"]))
+			except Exception:
+				st.write(diag["candidates"])
+
+			st.write("Bases comprobadas y contenido de las carpetas 'models' si existen:")
+			for b in diag["bases"]:
+				st.write(f"Base: {b['base']} — models_dir_exists: {b['models_dir_exists']}")
+				if b.get("models_dir_exists"):
+					st.write(b.get("files", []))
+
+			st.write("Estado de los archivos en GitHub raw:")
+			try:
+				st.table(pd.DataFrame(diag["remote"]))
+			except Exception:
+				st.write(diag["remote"]) 
+
 		st.stop()
 
 	# Sidebar - controles
