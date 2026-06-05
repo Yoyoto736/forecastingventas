@@ -330,8 +330,8 @@ def main():
 	data_path = base_dir.joinpath("data", "processed", "inferencia_df_transformado.csv")
 	# Rutas candidatas locales bajo el repo
 	model_candidates = [
-		base_dir.joinpath("models", "modelo_final.joblib"),
 		base_dir.joinpath("models", "model_full_df.joblib"),
+		base_dir.joinpath("models", "modelo_final.joblib"),
 		base_dir.joinpath("models", "modelo_final.pkl"),
 		base_dir.joinpath("models", "modelo_full.joblib"),
 	]
@@ -340,8 +340,8 @@ def main():
 	# No hace falta que existan localmente; load_model las ignorará si faltan.
 	fallback_mount = Path("/mount/src/forecastingventas")
 	model_candidates.extend([
-		fallback_mount.joinpath("models", "modelo_final.joblib"),
 		fallback_mount.joinpath("models", "model_full_df.joblib"),
+		fallback_mount.joinpath("models", "modelo_final.joblib"),
 		fallback_mount.joinpath("models", "modelo_final.pkl"),
 		fallback_mount.joinpath("models", "modelo_full.joblib"),
 	])
